@@ -27,24 +27,48 @@ export interface EnrichedSkill extends ScrapedSkill {
   displayName: string;
 }
 
+const SKILLS_API_BASE = 'https://skills.sh/api/skills/all-time';
+
+interface SkillsPageResponse {
+  skills: ScrapedSkill[];
+  total: number;
+  hasMore: boolean;
+  page: number;
+}
+
 /**
- * Scrape skills from skills.sh
+ * Scrape skills from skills.sh using the paginated API.
+ *
+ * skills.sh moved from embedding all skills in the HTML (allTimeSkills)
+ * to a paginated client-side API. This fetches all pages sequentially.
  */
 export async function scrapeSkills(): Promise<ScrapedSkill[]> {
-  const response = await fetch('https://skills.sh');
-  const html = await response.text();
+  const skills: ScrapedSkill[] = [];
+  let page = 0;
+  let hasMore = true;
 
-  // Find the allTimeSkills array in the escaped JSON
-  const match = html.match(/allTimeSkills\\":\[(.*?)\]/);
-  if (!match) {
-    throw new Error('Could not find allTimeSkills in page');
+  while (hasMore) {
+    const response = await fetch(`${SKILLS_API_BASE}/${page}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch page ${page}: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as SkillsPageResponse;
+
+    if (!Array.isArray(data.skills)) {
+      throw new Error(`Invalid response format on page ${page}: expected skills array`);
+    }
+
+    skills.push(...data.skills);
+    hasMore = data.hasMore;
+    page++;
+
+    if (page % 50 === 0) {
+      console.info(`[Scraper] Fetched ${skills.length}/${data.total} skills (page ${page})...`);
+    }
   }
 
-  // Unescape the JSON
-  let jsonStr = '[' + match[1] + ']';
-  jsonStr = jsonStr.replace(/\\"/g, '"');
-
-  const skills: ScrapedSkill[] = JSON.parse(jsonStr);
+  console.info(`[Scraper] Fetched ${skills.length} skills across ${page} pages`);
   return skills;
 }
 
