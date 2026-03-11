@@ -3,3 +3,4 @@ dist
 .turbo
 *.log
 registry/
+.mastra-om-repro

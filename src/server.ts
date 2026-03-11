@@ -143,7 +143,7 @@ export function createSkillsApiServer(options: SkillsApiServerOptions = {}): Hon
   if (autoRefresh) {
     startRefreshScheduler({
       intervalMs: refreshIntervalMinutes * 60 * 1000,
-      refreshOnStart: false,
+      refreshOnStart: true,
     });
   }
 
