@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono';
 
-import { fetchSkillFromGitHub, fetchSkillFiles } from '../github/index.js';
+import { fetchSkillFromGitHub, fetchSkillFiles, fetchSkillTree } from '../github/index.js';
 import { isS3Configured, loadSkillFilesFromS3, saveSkillFilesToS3 } from '../storage/s3.js';
 import {
   getSkills,
@@ -356,6 +356,23 @@ skillsRouter.get('/:owner/:repo/:skillId/content', async c => {
     instructions: result.content?.instructions,
     raw: result.content?.raw,
   });
+});
+
+/**
+ * GET /api/skills/:owner/:repo/:skillId/tree
+ * 文件树（路径+大小，不含内容）+ 仓库 stars/forks。详情页文件浏览器用。
+ */
+skillsRouter.get('/:owner/:repo/:skillId/tree', async c => {
+  const owner = c.req.param('owner');
+  const repo = c.req.param('repo');
+  const skillId = c.req.param('skillId');
+  const branch = c.req.query('branch') || 'main';
+
+  const result = await fetchSkillTree(owner, repo, skillId, branch);
+  if (!result.success) {
+    return c.json({ error: result.error }, 404);
+  }
+  return c.json(result);
 });
 
 export { skillsRouter };

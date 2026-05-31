@@ -362,3 +362,82 @@ export async function listSkillsInRepo(
 
   return null;
 }
+
+export interface SkillTreeFile {
+  path: string;
+  size: number;
+}
+
+export interface RepoStats {
+  stars: number;
+  forks: number;
+  description: string | null;
+  pushedAt: string | null;
+  htmlUrl: string;
+}
+
+export interface SkillTreeResult {
+  success: boolean;
+  skillDir?: string;
+  files?: SkillTreeFile[];
+  repo?: RepoStats;
+  error?: string;
+}
+
+/**
+ * 取仓库 stars/forks 等元信息（轻量，1 次 GitHub 调用）
+ */
+export async function fetchRepoStats(owner: string, repo: string): Promise<RepoStats | null> {
+  try {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: githubHeaders(),
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as Record<string, unknown>;
+    return {
+      stars: (j.stargazers_count as number) ?? 0,
+      forks: (j.forks_count as number) ?? 0,
+      description: (j.description as string) ?? null,
+      pushedAt: (j.pushed_at as string) ?? null,
+      htmlUrl: (j.html_url as string) ?? `https://github.com/${owner}/${repo}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 取某 skill 的文件树（仅路径+大小，不取内容）+ 仓库 stats。
+ * 用于详情页的「文件浏览器」与「仓库情报」，轻量适合 build 期调用。
+ */
+export async function fetchSkillTree(
+  owner: string,
+  repo: string,
+  skillId: string,
+  branch = 'main',
+): Promise<SkillTreeResult> {
+  try {
+    const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+    const tr = await fetch(treeUrl, { headers: githubHeaders() });
+    if (!tr.ok) {
+      return { success: false, error: `Failed to fetch repo tree for ${owner}/${repo}` };
+    }
+    const tree = (await tr.json()) as {
+      tree: Array<{ path: string; type: string; size?: number }>;
+    };
+    const skillDir = findSkillDir(tree.tree, skillId);
+    if (!skillDir) {
+      return { success: false, error: `Could not find skill "${skillId}" in ${owner}/${repo}` };
+    }
+    const prefix = skillDir + '/';
+    const files = tree.tree
+      .filter((i) => i.type === 'blob' && i.path.startsWith(prefix))
+      .map((i) => ({ path: i.path.slice(prefix.length), size: i.size ?? 0 }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    const stats = await fetchRepoStats(owner, repo);
+    return { success: true, skillDir, files, repo: stats ?? undefined };
+  } catch (error) {
+    const err = error as { message?: string };
+    return { success: false, error: err.message || 'Unknown error fetching skill tree' };
+  }
+}
