@@ -1,0 +1,16 @@
+# 构建上下文瘦身：源码 + package*.json + registry 数据进镜像即可
+node_modules
+dist
+.git
+.github
+*.log
+.env
+.env.*
+pnpm-lock.yaml
+yarn.lock
+.DS_Store
+coverage
+*.test.ts
+assets
+README.md
+DEPLOY.md
