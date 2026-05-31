@@ -89,6 +89,23 @@ export function createSkillsApiServer(options: SkillsApiServerOptions = {}): Hon
   app.use('*', prettyJSON());
   app.use('*', compress());
 
+  // API key 鉴权：配了 API_KEY 就要求 /api/* 带 x-api-key（/health、/ 放行）
+  const API_KEY = process.env.API_KEY;
+  if (API_KEY) {
+    app.use(`${prefix}/*`, async (c, next) => {
+      const provided =
+        c.req.header('x-api-key') ||
+        c.req.header('authorization')?.replace(/^Bearer\s+/i, '');
+      if (provided !== API_KEY) {
+        return c.json(
+          { error: 'Unauthorized', message: 'A valid x-api-key header is required' },
+          401,
+        );
+      }
+      await next();
+    });
+  }
+
   // Cache headers
   app.use(`${prefix}/skills/*`, async (c, next) => {
     await next();
