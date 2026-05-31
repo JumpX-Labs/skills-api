@@ -4,6 +4,18 @@
 
 import matter from 'gray-matter';
 
+// GitHub API 请求头：配了 GITHUB_TOKEN 就带上鉴权（匿名 60/hr → 5000/hr）
+function githubHeaders(): Record<string, string> {
+  const h: Record<string, string> = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'skills-api',
+  };
+  if (process.env.GITHUB_TOKEN) {
+    h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  return h;
+}
+
 export interface SkillContent {
   /** Raw SKILL.md content */
   raw: string;
@@ -136,10 +148,7 @@ async function findSkillInTree(
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
     const response = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'skills-api',
-      },
+      headers: githubHeaders(),
     });
 
     if (!response.ok) return null;
@@ -218,10 +227,7 @@ export async function fetchSkillFiles(
     // Get the full repo tree
     const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
     const treeResponse = await fetch(treeUrl, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-        'User-Agent': 'skills-api',
-      },
+      headers: githubHeaders(),
     });
 
     if (!treeResponse.ok) {
@@ -323,10 +329,7 @@ export async function listSkillsInRepo(
 
     try {
       const response = await fetch(url, {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'skills-api',
-        },
+        headers: githubHeaders(),
       });
 
       if (!response.ok) continue;
