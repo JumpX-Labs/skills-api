@@ -29,11 +29,53 @@ export interface EnrichedSkill extends ScrapedSkill {
 
 const SKILLS_API_BASE = 'https://skills.sh/api/skills/all-time';
 
+// 限速：skills.sh 会对密集请求返回 429。逐页之间留间隔，并对 429 做指数退避重试。
+const SCRAPE_DELAY_MS = parseInt(process.env.SCRAPE_DELAY_MS || '350', 10);
+const SCRAPE_MAX_RETRIES = parseInt(process.env.SCRAPE_MAX_RETRIES || '6', 10);
+
 interface SkillsPageResponse {
   skills: ScrapedSkill[];
   total: number;
   hasMore: boolean;
   page: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 抓单页，带 429 退避重试（尊重 Retry-After 头，否则指数退避，封顶 30s）。
+ */
+async function fetchPage(page: number): Promise<SkillsPageResponse> {
+  for (let attempt = 0; attempt <= SCRAPE_MAX_RETRIES; attempt++) {
+    const response = await fetch(`${SKILLS_API_BASE}/${page}`, {
+      headers: { 'user-agent': 'jumpxai-skills-api (+https://jumpxai.com)' },
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as SkillsPageResponse;
+      if (!Array.isArray(data.skills)) {
+        throw new Error(`Invalid response format on page ${page}: expected skills array`);
+      }
+      return data;
+    }
+
+    if (response.status === 429 && attempt < SCRAPE_MAX_RETRIES) {
+      const retryAfter = parseInt(response.headers.get('retry-after') || '', 10);
+      const waitMs = Number.isFinite(retryAfter)
+        ? retryAfter * 1000
+        : Math.min(30000, 1000 * 2 ** attempt);
+      console.warn(
+        `[Scraper] 429 on page ${page}, retry ${attempt + 1}/${SCRAPE_MAX_RETRIES} after ${waitMs}ms`,
+      );
+      await sleep(waitMs);
+      continue;
+    }
+
+    throw new Error(`Failed to fetch page ${page}: ${response.status} ${response.statusText}`);
+  }
+  throw new Error(`Failed to fetch page ${page} after ${SCRAPE_MAX_RETRIES} retries`);
 }
 
 /**
@@ -48,23 +90,19 @@ export async function scrapeSkills(): Promise<ScrapedSkill[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const response = await fetch(`${SKILLS_API_BASE}/${page}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch page ${page}: ${response.status} ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as SkillsPageResponse;
-
-    if (!Array.isArray(data.skills)) {
-      throw new Error(`Invalid response format on page ${page}: expected skills array`);
-    }
+    const data = await fetchPage(page);
 
     skills.push(...data.skills);
     hasMore = data.hasMore;
     page++;
 
-    if (page % 50 === 0) {
+    if (page % 10 === 0) {
       console.info(`[Scraper] Fetched ${skills.length}/${data.total} skills (page ${page})...`);
+    }
+
+    // 页间限速，避免 429
+    if (hasMore && SCRAPE_DELAY_MS > 0) {
+      await sleep(SCRAPE_DELAY_MS);
     }
   }
 
