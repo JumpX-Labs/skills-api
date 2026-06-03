@@ -1,6 +1,7 @@
 import { getMessages } from '../i18n/messages/index.js';
 import { localePath } from '../i18n/resolve.js';
 import { LOCALES, type Locale, type PageMessages } from '../i18n/types.js';
+import type { RequestStatsSnapshot } from '../metrics/request-stats.js';
 import type { RegistrySkill } from '../registry/types.js';
 
 const GITHUB_REPO_URL = 'https://github.com/JumpX-Labs/skills-api';
@@ -12,6 +13,7 @@ interface IndexPageOptions {
   metadata: { scrapedAt: string; totalSkills: number; totalSources: number; totalOwners: number };
   topSkills: RegistrySkill[];
   totalInstalls: number;
+  requestStats: RequestStatsSnapshot;
 }
 
 function formatNumber(n: number, locale: string): string {
@@ -20,6 +22,18 @@ function formatNumber(n: number, locale: string): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (hours < 24) return remMin ? `${hours}h ${remMin}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remHr = hours % 24;
+  return remHr ? `${days}d ${remHr}h` : `${days}d`;
 }
 
 function buildLangSwitcher(current: Locale, m: PageMessages): string {
@@ -39,7 +53,9 @@ export function renderIndexPage({
   metadata,
   topSkills,
   totalInstalls,
+  requestStats,
 }: IndexPageOptions): string {
+  const uptimeLabel = formatUptime(requestStats.uptimeSeconds);
   const scrapedDate = new Date(metadata.scrapedAt);
   const formattedDate = scrapedDate.toLocaleDateString(m.dateLocale, {
     year: 'numeric',
@@ -272,6 +288,12 @@ body {
   letter-spacing: 1.5px;
   color: var(--text-3);
   margin-top: 4px;
+}
+
+.traffic-hint {
+  font-size: 13px;
+  color: var(--text-3);
+  margin: -12px 0 16px;
 }
 
 section { margin-bottom: 64px; }
@@ -571,6 +593,29 @@ td a:hover { color: var(--accent); }
       <div class="stat-label">${escapeHtml(m.statTotalInstalls)}</div>
     </div>
   </div>
+
+  <section>
+    <h2 class="section-title">${escapeHtml(m.sectionTraffic)}</h2>
+    <p class="traffic-hint">${escapeHtml(m.trafficSinceRestart)}</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">${formatNumber(requestStats.total, m.numberLocale)}</div>
+        <div class="stat-label">${escapeHtml(m.statRequestsTotal)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${formatNumber(requestStats.api, m.numberLocale)}</div>
+        <div class="stat-label">${escapeHtml(m.statRequestsApi)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${formatNumber(requestStats.page, m.numberLocale)}</div>
+        <div class="stat-label">${escapeHtml(m.statRequestsPages)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">${escapeHtml(uptimeLabel)}</div>
+        <div class="stat-label">${escapeHtml(m.statUptime)}</div>
+      </div>
+    </div>
+  </section>
 
   <section>
     <h2 class="section-title">${escapeHtml(m.sectionTopSkills)}</h2>

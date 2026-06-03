@@ -17,6 +17,12 @@ export interface PageMessages {
   statSources: string;
   statOwners: string;
   statTotalInstalls: string;
+  sectionTraffic: string;
+  statRequestsTotal: string;
+  statRequestsApi: string;
+  statRequestsPages: string;
+  statUptime: string;
+  trafficSinceRestart: string;
   sectionTopSkills: string;
   sectionDirectory: string;
   sectionApiReference: string;

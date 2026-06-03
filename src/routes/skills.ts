@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 
 import { fetchSkillFromGitHub, fetchSkillFiles, fetchSkillTree } from '../github/index.js';
 import { isS3Configured, loadSkillFilesFromS3, saveSkillFilesToS3 } from '../storage/s3.js';
+import { getRequestStats } from '../metrics/request-stats.js';
 import {
   getSkills,
   getMetadata,
@@ -219,6 +220,7 @@ skillsRouter.get('/stats', c => {
     totalSources: metadata.totalSources,
     totalOwners: metadata.totalOwners,
     totalInstalls,
+    requests: getRequestStats(),
   });
 });
 

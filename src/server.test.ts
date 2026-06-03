@@ -175,6 +175,26 @@ describe('Skills API Server', () => {
       expect(body.totalInstalls).toBeGreaterThan(0);
       expect(body.scrapedAt).toBeDefined();
     });
+
+    it('includes in-memory request counters', async () => {
+      await app.request('/health');
+      const res = await app.request('/api/skills/stats');
+      const body = await res.json();
+      expect(body.requests).toBeDefined();
+      expect(body.requests.total).toBeGreaterThanOrEqual(2);
+      expect(body.requests.api).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('landing request metrics', () => {
+    it('shows traffic section on homepage', async () => {
+      await app.request('/api/skills?pageSize=1');
+      const res = await app.request('/zh');
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('请求统计');
+      expect(body).toContain('stat-label');
+    });
   });
 
   describe('GET /api/skills/by-source/:owner/:repo', () => {

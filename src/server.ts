@@ -9,7 +9,9 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 
+import { getRequestStats } from './metrics/request-stats.js';
 import { localeMiddleware, type AppVariables } from './middleware/locale.js';
+import { requestMetricsMiddleware } from './middleware/request-metrics.js';
 import { isLocale } from './i18n/resolve.js';
 import { renderIndexPage } from './pages/index.js';
 import { getMetadata, getSkills, getTopSkills } from './registry/index.js';
@@ -90,6 +92,7 @@ export function createSkillsApiServer(options: SkillsApiServerOptions = {}): Hon
 
   app.use('*', prettyJSON());
   app.use('*', compress());
+  app.use('*', requestMetricsMiddleware);
 
   // API key 鉴权：仅保护 /api/admin/*（公开 skills 列表与首页 Directory 不需 key）
   const API_KEY = process.env.API_KEY;
@@ -154,6 +157,7 @@ export function createSkillsApiServer(options: SkillsApiServerOptions = {}): Hon
       metadata,
       topSkills,
       totalInstalls,
+      requestStats: getRequestStats(),
     });
     return c.html(html);
   };
