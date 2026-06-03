@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createSkillsApiServer } from './server.js';
 
 describe('Skills API Server', () => {
@@ -261,6 +261,38 @@ describe('Skills API Server', () => {
     it('returns 404 for admin routes when disabled', async () => {
       const res = await appNoAdmin.request('/api/admin/status');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('API_KEY (admin only)', () => {
+    const prev = process.env.API_KEY;
+
+    beforeEach(() => {
+      process.env.API_KEY = 'test-secret-key';
+    });
+
+    afterEach(() => {
+      if (prev === undefined) delete process.env.API_KEY;
+      else process.env.API_KEY = prev;
+    });
+
+    it('allows public GET /api/skills without key', async () => {
+      const appWithKey = createSkillsApiServer({ logging: false });
+      const res = await appWithKey.request('/api/skills?pageSize=1');
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.skills).toBeInstanceOf(Array);
+    });
+
+    it('requires key for GET /api/admin/status', async () => {
+      const appWithKey = createSkillsApiServer({ logging: false });
+      const unauthorized = await appWithKey.request('/api/admin/status');
+      expect(unauthorized.status).toBe(401);
+
+      const authorized = await appWithKey.request('/api/admin/status', {
+        headers: { 'x-api-key': 'test-secret-key' },
+      });
+      expect(authorized.status).toBe(200);
     });
   });
 });

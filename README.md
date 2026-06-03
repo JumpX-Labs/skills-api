@@ -26,9 +26,67 @@ pnpm build && pnpm start
 | `PORT` | `3456` | Server port |
 | `HOST` | `0.0.0.0` | Server host |
 | `CORS_ORIGIN` | `*` | CORS origin |
+| `API_KEY` | - | Optional secret; **only** protects `/api/admin/*` when set |
 | `AUTO_REFRESH` | `false` | Auto-refresh scheduler |
 | `REFRESH_INTERVAL` | `30` | Refresh interval (minutes, min 5) |
 | `SKILLS_DATA_DIR` | - | Filesystem storage directory |
+
+### API key (`API_KEY`)
+
+`API_KEY` is **optional**. When set, it gates **admin routes only** (`/api/admin/*`). Public read APIs and the homepage Directory stay open without a key.
+
+| Scope | Requires `API_KEY`? |
+|---|---|
+| `GET /`, `GET /health` | No |
+| `GET /api/skills`, `/api/skills/*` (list, search, stats, content) | No |
+| `GET/POST /api/admin/*` (refresh, scheduler) | **Yes** (if `API_KEY` is set) |
+
+**Do not** put `API_KEY` on all `/api/*` in a reverse proxy or WAF rule — that breaks the landing page Directory, which calls `GET /api/skills` from the browser without headers.
+
+**Header** (either works):
+
+```http
+x-api-key: <your-secret>
+```
+
+or
+
+```http
+Authorization: Bearer <your-secret>
+```
+
+**Examples**
+
+```bash
+# Public — no key
+curl 'https://skills-api.example.com/api/skills?pageSize=5'
+curl https://skills-api.example.com/api/skills/stats
+
+# Admin — key required when API_KEY is configured
+export API_KEY='your-long-random-secret'
+curl -H "x-api-key: $API_KEY" https://skills-api.example.com/api/admin/status
+curl -X POST -H "x-api-key: $API_KEY" https://skills-api.example.com/api/admin/refresh
+```
+
+**Production (Dokploy / Docker)**
+
+1. Generate a long random value (e.g. `openssl rand -hex 32`).
+2. Set `API_KEY` in the deployment environment panel only — never commit it.
+3. Redeploy after changing `API_KEY`.
+4. JumpXAI platform and other server-side clients call `/api/skills*` **without** a key; only operators/scripts that trigger refresh need the key.
+
+**Local dev**
+
+```bash
+# No key — everything including admin is open (default)
+pnpm dev
+
+# With key — admin routes require header; skills API stays public
+API_KEY=dev-secret pnpm dev
+curl -H 'x-api-key: dev-secret' http://localhost:3456/api/admin/status
+```
+
+See also [DEPLOY.md](./DEPLOY.md) for JumpXAI R2 + Dokploy setup.
 
 ### S3 Storage
 
@@ -87,6 +145,8 @@ The root page (`/`) serves a browsable directory with search and API documentati
 
 ### Admin
 
+Requires `x-api-key` (or `Authorization: Bearer`) when `API_KEY` is set. See [API key](#api-key-api_key).
+
 | Endpoint | Description |
 |---|---|
 | `GET /api/admin/status` | Scheduler and data status |
@@ -103,7 +163,7 @@ pnpm scrape
 # Auto-refresh via env
 AUTO_REFRESH=true REFRESH_INTERVAL=30 pnpm start
 
-# Via admin API
+# Via admin API (add -H 'x-api-key: ...' if API_KEY is set)
 curl -X POST http://localhost:3456/api/admin/refresh
 ```
 

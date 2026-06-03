@@ -625,17 +625,26 @@ td a:hover { color: var(--accent); }
     if (state.query) url += '&query=' + encodeURIComponent(state.query);
 
     fetch(url)
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        return r.json().then(function(data) {
+          if (!r.ok) {
+            var msg = (data && data.message) || (data && data.error) || ('HTTP ' + r.status);
+            throw new Error(msg);
+          }
+          return data;
+        });
+      })
       .then(function(data) {
         state.total = data.total;
         state.totalPages = data.totalPages;
         state.loading = false;
-        render(data.skills);
+        render(data.skills || []);
         updateControls();
       })
-      .catch(function() {
+      .catch(function(err) {
         state.loading = false;
-        tbody.innerHTML = '<tr><td colspan="3" class="dir-empty">Failed to load</td></tr>';
+        var hint = err && err.message ? esc(String(err.message)) : 'Failed to load';
+        tbody.innerHTML = '<tr><td colspan="3" class="dir-empty">' + hint + '</td></tr>';
       });
   }
 

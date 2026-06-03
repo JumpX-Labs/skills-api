@@ -51,13 +51,17 @@ JumpXAI 平台(next-app 服务端) ──HTTP──► skills-api(Dokploy 容器
 | `AUTO_REFRESH` | `true` | 开自动增量刷新 |
 | `REFRESH_INTERVAL` | `720` | 分钟（720=12h） |
 | `GITHUB_TOKEN` | `<PAT>` | scraper 抓 GitHub 防限流 |
+| `API_KEY` | `<随机长串>` | **可选**；仅保护 `/api/admin/*`，见 README「API key」 |
+
+> **常见故障**：若把 `API_KEY` 误配成「全站 `/api` 都要 key」（旧版行为或反代规则），首页 Directory 会显示 Failed to load，但顶部统计仍正常。当前版本只需对 admin 带 key；`/api/skills*` 与平台 `SKILLS_API_URL` 调用均无需 key。
 
 ## 三、验证
 
 ```bash
 curl https://skills-api.jumpxai.com/health                 # {"status":"ok"}
 curl https://skills-api.jumpxai.com/api/skills/stats        # totalSkills: 34000+
-curl 'https://skills-api.jumpxai.com/api/skills?pageSize=3' # 列表
+curl 'https://skills-api.jumpxai.com/api/skills?pageSize=3' # 列表（无需 API key）
+curl -H "x-api-key: $API_KEY" https://skills-api.jumpxai.com/api/admin/status  # 仅当配置了 API_KEY
 ```
 首次启动日志应见 `[Storage] S3 bucket empty, seeding from bundled data` → R2 桶里出现 `skills-data.json`。
 
