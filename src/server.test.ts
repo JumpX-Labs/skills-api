@@ -13,6 +13,39 @@ describe('Skills API Server', () => {
       expect(body).toContain('<!DOCTYPE html>');
       expect(body).toContain('skills.sh');
     });
+
+    it('returns Chinese landing at /zh', async () => {
+      const res = await app.request('/zh');
+      expect(res.status).toBe(200);
+
+      const body = await res.text();
+      expect(body).toContain('lang="zh-CN"');
+      expect(body).toContain('目录');
+      expect(body).toContain('href="/zh"');
+    });
+
+    it('returns French landing at /fr', async () => {
+      const res = await app.request('/fr');
+      expect(res.status).toBe(200);
+
+      const body = await res.text();
+      expect(body).toContain('lang="fr"');
+      expect(body).toContain('Répertoire');
+    });
+
+    it('returns 404 for unsupported locale path', async () => {
+      const res = await app.request('/de');
+      expect(res.status).toBe(404);
+    });
+
+    it('honors ?lang= query on /', async () => {
+      const res = await app.request('/?lang=ko');
+      expect(res.status).toBe(200);
+
+      const body = await res.text();
+      expect(body).toContain('lang="ko"');
+      expect(body).toContain('디렉터리');
+    });
   });
 
   describe('GET /health', () => {

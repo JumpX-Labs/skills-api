@@ -1,10 +1,14 @@
 # @mastra/skills-api
 
+English · [简体中文](./README.zh-CN.md)
+
 ![skills-api](assets/screenshot.png)
 
 API server for [skills.sh](https://skills.sh) -- the open marketplace for Agent Skills.
 
-Serves a browsable registry of 34,000+ skills from 2,800+ repositories. Use it as a standalone server or as a library in your own project.
+Serves a browsable registry of Agent Skills (counts vary by snapshot; see `GET /api/skills/stats`). Use it as a standalone server or as a library in your own project.
+
+> JumpXAI fork: [JumpX-Labs/skills-api](https://github.com/JumpX-Labs/skills-api). Upstream: [mastra-ai/skills-api](https://github.com/mastra-ai/skills-api) (MIT). Production deploy: [DEPLOY.md](./DEPLOY.md).
 
 ## Quick Start
 
@@ -28,8 +32,9 @@ pnpm build && pnpm start
 | `CORS_ORIGIN` | `*` | CORS origin |
 | `API_KEY` | - | Optional secret; **only** protects `/api/admin/*` when set |
 | `AUTO_REFRESH` | `false` | Auto-refresh scheduler |
-| `REFRESH_INTERVAL` | `30` | Refresh interval (minutes, min 5) |
+| `REFRESH_INTERVAL` | `30` | Refresh interval (minutes) |
 | `SKILLS_DATA_DIR` | - | Filesystem storage directory |
+| `GITHUB_TOKEN` | - | Optional; raises GitHub rate limits for fetch/validate |
 
 ### API key (`API_KEY`)
 
@@ -109,6 +114,8 @@ Storage priority: **S3 > Filesystem > Bundled data**. When both S3 and filesyste
 
 The root page (`/`) serves a browsable directory with search and API documentation. All data endpoints are under `/api`.
 
+**Landing page languages:** `en` (default), `fr`, `zh`, `ko` — use `/fr`, `/zh`, `/ko`, or `?lang=fr` on `/`. Locale is stored in the `skills_api_locale` cookie; `Accept-Language` is used when no preference is set.
+
 ### Skills
 
 | Endpoint | Description |
@@ -119,6 +126,7 @@ The root page (`/`) serves a browsable directory with search and API documentati
 | `GET /api/skills/:owner/:repo/:skillId` | Skill by source and ID |
 | `GET /api/skills/:owner/:repo/:skillId/files` | Skill file contents from GitHub |
 | `GET /api/skills/:owner/:repo/:skillId/content` | Parsed SKILL.md from GitHub |
+| `GET /api/skills/:owner/:repo/:skillId/tree` | File tree (paths/sizes) + repo stars/forks |
 | `GET /api/skills/by-source/:owner/:repo` | All skills from a repo |
 
 **Search parameters** for `GET /api/skills`:
@@ -155,6 +163,8 @@ Requires `x-api-key` (or `Authorization: Bearer`) when `API_KEY` is set. See [AP
 | `POST /api/admin/scheduler/stop` | Stop auto-refresh |
 
 ## Updating Data
+
+Background scrapes against skills.sh may return **429**; the scheduler/scraper uses delays and backoff. That does not affect public read traffic to this API.
 
 ```bash
 # Manual scrape

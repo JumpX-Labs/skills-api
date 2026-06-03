@@ -9,6 +9,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 
+import { localeMiddleware, type AppVariables } from './middleware/locale.js';
+import { isLocale } from './i18n/resolve.js';
 import { renderIndexPage } from './pages/index.js';
 import { getMetadata, getSkills, getTopSkills } from './registry/index.js';
 import { adminRouter } from './routes/admin.js';
@@ -139,14 +141,34 @@ export function createSkillsApiServer(options: SkillsApiServerOptions = {}): Hon
     });
   });
 
-  // Root endpoint — HTML landing page
-  app.get('/', c => {
+  const landing = new Hono<{ Variables: AppVariables }>();
+
+  const renderLanding = (c: import('hono').Context<{ Variables: AppVariables }>) => {
     const metadata = getMetadata();
     const topSkills = getTopSkills(10);
     const totalInstalls = getSkills().reduce((sum, s) => sum + s.installs, 0);
-    const html = renderIndexPage({ prefix, metadata, topSkills, totalInstalls });
+    const html = renderIndexPage({
+      prefix,
+      locale: c.get('locale'),
+      messages: c.get('messages'),
+      metadata,
+      topSkills,
+      totalInstalls,
+    });
     return c.html(html);
+  };
+
+  landing.use('*', localeMiddleware);
+  landing.get('/', c => renderLanding(c));
+  landing.get('/:locale', c => {
+    const param = c.req.param('locale');
+    if (!isLocale(param)) {
+      return c.notFound();
+    }
+    return renderLanding(c);
   });
+
+  app.route('/', landing);
 
   // Mount skills routes
   app.route(`${prefix}/skills`, skillsRouter);

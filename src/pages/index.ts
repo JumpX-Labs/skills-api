@@ -1,23 +1,47 @@
+import { getMessages } from '../i18n/messages/index.js';
+import { localePath } from '../i18n/resolve.js';
+import { LOCALES, type Locale, type PageMessages } from '../i18n/types.js';
 import type { RegistrySkill } from '../registry/types.js';
+
+const GITHUB_REPO_URL = 'https://github.com/JumpX-Labs/skills-api';
 
 interface IndexPageOptions {
   prefix: string;
+  locale: Locale;
+  messages: PageMessages;
   metadata: { scrapedAt: string; totalSkills: number; totalSources: number; totalOwners: number };
   topSkills: RegistrySkill[];
   totalInstalls: number;
 }
 
-function formatNumber(n: number): string {
-  return n.toLocaleString('en-US');
+function formatNumber(n: number, locale: string): string {
+  return n.toLocaleString(locale);
 }
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-export function renderIndexPage({ prefix, metadata, topSkills, totalInstalls }: IndexPageOptions): string {
+function buildLangSwitcher(current: Locale, m: PageMessages): string {
+  return LOCALES.map(loc => {
+    const href = localePath(loc);
+    const active = loc === current ? ' is-active' : '';
+    const label = m.localeShort[loc];
+    const lang = getMessages(loc).htmlLang;
+    return `<a href="${href}" hreflang="${lang}" class="lang-link${active}">${escapeHtml(label)}</a>`;
+  }).join('');
+}
+
+export function renderIndexPage({
+  prefix,
+  locale,
+  messages: m,
+  metadata,
+  topSkills,
+  totalInstalls,
+}: IndexPageOptions): string {
   const scrapedDate = new Date(metadata.scrapedAt);
-  const formattedDate = scrapedDate.toLocaleDateString('en-US', {
+  const formattedDate = scrapedDate.toLocaleDateString(m.dateLocale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -34,24 +58,25 @@ export function renderIndexPage({ prefix, metadata, topSkills, totalInstalls }: 
         <td class="rank">${i + 1}</td>
         <td><a href="${escapeHtml(skill.githubUrl)}" target="_blank" rel="noopener">${escapeHtml(skill.displayName)}</a></td>
         <td class="mono source"><a href="${prefix}/skills/by-source/${escapeHtml(skill.owner)}/${escapeHtml(skill.repo)}" target="_blank">${escapeHtml(skill.source)}</a></td>
-        <td class="installs">${formatNumber(skill.installs)}</td>
+        <td class="installs">${formatNumber(skill.installs, m.numberLocale)}</td>
       </tr>`,
     )
     .join('');
 
   const endpoints = [
-    { method: 'GET', path: `${prefix}/skills`, desc: 'List and search skills with pagination' },
-    { method: 'GET', path: `${prefix}/skills/top`, desc: 'Top skills by install count' },
-    { method: 'GET', path: `${prefix}/skills/sources`, desc: 'All source repositories' },
-    { method: 'GET', path: `${prefix}/skills/sources/top`, desc: 'Top sources by installs' },
-    { method: 'GET', path: `${prefix}/skills/owners`, desc: 'All skill owners' },
-    { method: 'GET', path: `${prefix}/skills/agents`, desc: 'Supported AI agents' },
-    { method: 'GET', path: `${prefix}/skills/stats`, desc: 'Registry statistics' },
-    { method: 'GET', path: `${prefix}/skills/by-source/:owner/:repo`, desc: 'Skills from a specific repo' },
-    { method: 'GET', path: `${prefix}/skills/:skillId`, desc: 'Individual skill by ID' },
-    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId`, desc: 'Skill by source and ID' },
-    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId/files`, desc: 'Skill file contents' },
-    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId/content`, desc: 'Full SKILL.md content' },
+    { method: 'GET', path: `${prefix}/skills`, desc: m.endpoints.list },
+    { method: 'GET', path: `${prefix}/skills/top`, desc: m.endpoints.top },
+    { method: 'GET', path: `${prefix}/skills/sources`, desc: m.endpoints.sources },
+    { method: 'GET', path: `${prefix}/skills/sources/top`, desc: m.endpoints.sourcesTop },
+    { method: 'GET', path: `${prefix}/skills/owners`, desc: m.endpoints.owners },
+    { method: 'GET', path: `${prefix}/skills/agents`, desc: m.endpoints.agents },
+    { method: 'GET', path: `${prefix}/skills/stats`, desc: m.endpoints.stats },
+    { method: 'GET', path: `${prefix}/skills/by-source/:owner/:repo`, desc: m.endpoints.bySource },
+    { method: 'GET', path: `${prefix}/skills/:skillId`, desc: m.endpoints.byId },
+    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId`, desc: m.endpoints.bySourceId },
+    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId/files`, desc: m.endpoints.files },
+    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId/content`, desc: m.endpoints.content },
+    { method: 'GET', path: `${prefix}/skills/:owner/:repo/:skillId/tree`, desc: m.endpoints.tree },
   ];
 
   const endpointRows = endpoints
@@ -65,12 +90,29 @@ export function renderIndexPage({ prefix, metadata, topSkills, totalInstalls }: 
     )
     .join('');
 
+  const langSwitcher = buildLangSwitcher(locale, m);
+  const clientI18n = JSON.stringify({
+    loading: m.loading,
+    empty: m.empty,
+    failedToLoad: m.failedToLoad,
+    skillsCountLabel: m.skillsCountLabel,
+    numberLocale: m.numberLocale,
+  });
+
+  const hreflangLinks = LOCALES.map(loc => {
+    const href = localePath(loc);
+    const lang = getMessages(loc).htmlLang;
+    return `<link rel="alternate" hreflang="${lang}" href="${href}">`;
+  }).join('\n');
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(m.htmlLang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>skills-api</title>
+${hreflangLinks}
+<link rel="alternate" hreflang="x-default" href="/">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -107,7 +149,6 @@ body {
   padding: 0 24px;
 }
 
-/* ---- HERO ---- */
 .hero {
   padding: 80px 0 48px;
   position: relative;
@@ -143,11 +184,46 @@ body {
   font-weight: 400;
 }
 
+.lang-switch {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.lang-switch[aria-label]::before {
+  content: none;
+}
+
+.lang-link {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.lang-link:hover {
+  color: var(--text-2);
+  border-color: var(--border-light);
+}
+
+.lang-link.is-active {
+  color: var(--text);
+  border-color: var(--accent-dim);
+  background: var(--accent-bg);
+}
+
 .hero-links {
   margin-top: 24px;
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .hero-links a {
@@ -166,7 +242,6 @@ body {
   border-color: var(--accent);
 }
 
-/* ---- STATS ---- */
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -199,7 +274,6 @@ body {
   margin-top: 4px;
 }
 
-/* ---- SECTIONS ---- */
 section { margin-bottom: 64px; }
 
 .section-title {
@@ -213,7 +287,6 @@ section { margin-bottom: 64px; }
   border-bottom: 1px solid var(--border);
 }
 
-/* ---- TABLES ---- */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -273,14 +346,12 @@ td a:hover { color: var(--accent); }
 
 .mono { font-family: var(--mono); }
 
-/* ---- TABLE WRAPPER ---- */
 .table-wrap {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
-/* ---- DIRECTORY ---- */
 .search-bar {
   display: flex;
   align-items: center;
@@ -395,7 +466,6 @@ td a:hover { color: var(--accent); }
   font-size: 14px;
 }
 
-/* ---- ENDPOINTS ---- */
 .endpoint {
   display: grid;
   grid-template-columns: 40px 1fr 1fr;
@@ -430,7 +500,6 @@ td a:hover { color: var(--accent); }
   font-size: 13px;
 }
 
-/* ---- FOOTER ---- */
 .footer {
   padding: 32px 0;
   border-top: 1px solid var(--border);
@@ -449,7 +518,6 @@ td a:hover { color: var(--accent); }
 
 .footer a:hover { color: var(--accent); }
 
-/* ---- RESPONSIVE ---- */
 @media (max-width: 768px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .brand { font-size: 32px; }
@@ -471,51 +539,49 @@ td a:hover { color: var(--accent); }
 
 <div class="container">
 
-  <!-- Hero -->
   <header class="hero">
     <div class="hero-content">
       <h1 class="brand">skills<span class="dot">-</span>api</h1>
-      <p class="tagline">API for skills.sh</p>
+      <p class="tagline">${escapeHtml(m.tagline)}</p>
+      <nav class="lang-switch" aria-label="${escapeHtml(m.langSwitcherAria)}">${langSwitcher}</nav>
       <div class="hero-links">
-        <a href="https://github.com/mastra-ai/skills-api">GitHub</a>
-        <a href="https://skills.sh">skills.sh</a>
-        <a href="https://agentskills.io">Specification</a>
-        <a href="#api-reference">API Reference</a>
+        <a href="${GITHUB_REPO_URL}">${escapeHtml(m.navGithub)}</a>
+        <a href="https://skills.sh">${escapeHtml(m.navSkillsSh)}</a>
+        <a href="https://agentskills.io">${escapeHtml(m.navSpecification)}</a>
+        <a href="#api-reference">${escapeHtml(m.navApiReference)}</a>
       </div>
     </div>
   </header>
 
-  <!-- Stats -->
   <div class="stats">
     <div class="stat">
-      <div class="stat-value">${formatNumber(metadata.totalSkills)}</div>
-      <div class="stat-label">Skills</div>
+      <div class="stat-value">${formatNumber(metadata.totalSkills, m.numberLocale)}</div>
+      <div class="stat-label">${escapeHtml(m.statSkills)}</div>
     </div>
     <div class="stat">
-      <div class="stat-value">${formatNumber(metadata.totalSources)}</div>
-      <div class="stat-label">Sources</div>
+      <div class="stat-value">${formatNumber(metadata.totalSources, m.numberLocale)}</div>
+      <div class="stat-label">${escapeHtml(m.statSources)}</div>
     </div>
     <div class="stat">
-      <div class="stat-value">${formatNumber(metadata.totalOwners)}</div>
-      <div class="stat-label">Owners</div>
+      <div class="stat-value">${formatNumber(metadata.totalOwners, m.numberLocale)}</div>
+      <div class="stat-label">${escapeHtml(m.statOwners)}</div>
     </div>
     <div class="stat">
-      <div class="stat-value">${formatNumber(totalInstalls)}</div>
-      <div class="stat-label">Total Installs</div>
+      <div class="stat-value">${formatNumber(totalInstalls, m.numberLocale)}</div>
+      <div class="stat-label">${escapeHtml(m.statTotalInstalls)}</div>
     </div>
   </div>
 
-  <!-- Top Skills -->
   <section>
-    <h2 class="section-title">Top Skills</h2>
+    <h2 class="section-title">${escapeHtml(m.sectionTopSkills)}</h2>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>Skill</th>
-            <th>Source</th>
-            <th style="text-align:right">Installs</th>
+            <th>${escapeHtml(m.colSkill)}</th>
+            <th>${escapeHtml(m.colSource)}</th>
+            <th style="text-align:right">${escapeHtml(m.colInstalls)}</th>
           </tr>
         </thead>
         <tbody>${topSkillsRows}</tbody>
@@ -523,13 +589,12 @@ td a:hover { color: var(--accent); }
     </div>
   </section>
 
-  <!-- Browsable Directory -->
   <section>
-    <h2 class="section-title">Directory</h2>
+    <h2 class="section-title">${escapeHtml(m.sectionDirectory)}</h2>
     <div class="search-bar">
       <div class="search-input-wrap">
         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="dir-search" placeholder="Search skills..." autocomplete="off" spellcheck="false">
+        <input type="text" id="dir-search" placeholder="${escapeHtml(m.searchPlaceholder)}" autocomplete="off" spellcheck="false">
         <span class="search-kbd">/</span>
       </div>
     </div>
@@ -537,29 +602,28 @@ td a:hover { color: var(--accent); }
       <div class="dir-meta">
         <span class="count" id="dir-count"></span>
         <div class="pagination">
-          <button id="dir-prev" disabled>&larr; Prev</button>
+          <button id="dir-prev" disabled>${escapeHtml(m.btnPrev)}</button>
           <span class="page-info" id="dir-page-info"></span>
-          <button id="dir-next" disabled>Next &rarr;</button>
+          <button id="dir-next" disabled>${escapeHtml(m.btnNext)}</button>
         </div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Skill</th>
-            <th>Source</th>
-            <th style="text-align:right">Installs</th>
+            <th>${escapeHtml(m.colSkill)}</th>
+            <th>${escapeHtml(m.colSource)}</th>
+            <th style="text-align:right">${escapeHtml(m.colInstalls)}</th>
           </tr>
         </thead>
         <tbody id="dir-body">
-          <tr><td colspan="3" class="dir-loading">Loading...</td></tr>
+          <tr><td colspan="3" class="dir-loading">${escapeHtml(m.loading)}</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <!-- API Reference -->
   <section id="api-reference">
-    <h2 class="section-title">API Reference</h2>
+    <h2 class="section-title">${escapeHtml(m.sectionApiReference)}</h2>
     <div class="table-wrap">
       ${endpointRows}
     </div>
@@ -569,13 +633,14 @@ td a:hover { color: var(--accent); }
 
 <footer>
   <div class="container footer">
-    <span>Last updated ${escapeHtml(formattedDate)}</span>
-    <span><a href="https://github.com/mastra-ai/skills-api">GitHub</a> &middot; <a href="https://skills.sh">skills.sh</a> &middot; MIT</span>
+    <span>${escapeHtml(m.footerLastUpdated)} ${escapeHtml(formattedDate)}</span>
+    <span><a href="${GITHUB_REPO_URL}">${escapeHtml(m.navGithub)}</a> &middot; <a href="https://skills.sh">${escapeHtml(m.navSkillsSh)}</a> &middot; MIT</span>
   </div>
 </footer>
 
 <script>
 (function() {
+  var I18N = ${clientI18n};
   var API = '${prefix}/skills';
   var PAGE_SIZE = 25;
   var state = { query: '', page: 1, total: 0, totalPages: 0, loading: false };
@@ -589,7 +654,11 @@ td a:hover { color: var(--accent); }
   var debounceTimer;
 
   function fmt(n) {
-    return n.toLocaleString('en-US');
+    return n.toLocaleString(I18N.numberLocale);
+  }
+
+  function skillsCountLabel(n) {
+    return I18N.skillsCountLabel.replace('{count}', fmt(n));
   }
 
   function esc(s) {
@@ -600,7 +669,7 @@ td a:hover { color: var(--accent); }
 
   function render(skills) {
     if (!skills.length) {
-      tbody.innerHTML = '<tr><td colspan="3" class="dir-empty">No skills found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" class="dir-empty">' + esc(I18N.empty) + '</td></tr>';
       return;
     }
     tbody.innerHTML = skills.map(function(s) {
@@ -613,7 +682,7 @@ td a:hover { color: var(--accent); }
   }
 
   function updateControls() {
-    countEl.innerHTML = '<span>' + fmt(state.total) + '</span> skills';
+    countEl.innerHTML = '<span>' + skillsCountLabel(state.total) + '</span>';
     pageInfo.textContent = state.totalPages ? state.page + ' / ' + state.totalPages : '';
     prevBtn.disabled = state.page <= 1;
     nextBtn.disabled = state.page >= state.totalPages;
@@ -643,7 +712,7 @@ td a:hover { color: var(--accent); }
       })
       .catch(function(err) {
         state.loading = false;
-        var hint = err && err.message ? esc(String(err.message)) : 'Failed to load';
+        var hint = err && err.message ? esc(String(err.message)) : esc(I18N.failedToLoad);
         tbody.innerHTML = '<tr><td colspan="3" class="dir-empty">' + hint + '</td></tr>';
       });
   }

@@ -58,11 +58,10 @@
   "homepage": "https://skills.sh",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mastra-ai/mastra.git",
-    "directory": "explorations/skills-api"
+    "url": "git+https://github.com/JumpX-Labs/skills-api.git"
   },
   "bugs": {
-    "url": "https://github.com/mastra-ai/mastra/issues"
+    "url": "https://github.com/JumpX-Labs/skills-api/issues"
   },
   "engines": {
     "node": ">=22.13.0"
